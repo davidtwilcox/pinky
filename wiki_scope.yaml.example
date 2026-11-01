@@ -1,0 +1,127 @@
+# pinky - Wiki Scope
+# Configuration and structural map for the LLM wiki this workspace investigates.
+# This file is the source of truth for WHERE the wiki lives and HOW it is laid out.
+# It never contains wiki content - the wiki is always read live from `wiki.root`.
+
+# ==============================================================================
+# WIKI LOCATION
+# ==============================================================================
+
+wiki:
+  name: "My Research Wiki"
+  # Precedence: PINKY_WIKI_ROOT, .wiki_root, then this value.
+  root: "<absolute_path_to_wiki>"
+  # Optional: retain only when the root uses a symlink; resolve with realpath.
+  canonical_root: "<canonical_path_if_symlinked>"
+  storage: local
+  access: read-only
+  # Optional: name the actual instructions file, or delete this key.
+  agent_instructions: "<CLAUDE.md_or_AGENTS.md>"
+
+# ==============================================================================
+# LAYOUT - what each directory means
+# ==============================================================================
+
+layout:
+  - path: "raw"
+    role: "Immutable source documents. Primary evidence. Never modified by anyone."
+    contains: "Notes (.md) and documents (.pdf)"
+    note: "PDFs here are NOT searchable via QMD (it indexes **/*.md only). Read them directly"
+
+  - path: "raw/attachments"
+    role: "Supporting assets for raw notes. Not sources - skip in ingestion coverage."
+
+  - path: "wiki"
+    role: "LLM-generated and maintained pages. Derived knowledge, not evidence."
+
+  - path: "wiki/sources"
+    role: "Source pages - summaries of every raw document, one per raw document."
+    note: "`type: source-summary`. Their `sources:` frontmatter is the provenance link into raw/ - use it for ingestion coverage."
+
+  - path: "wiki/concepts"
+    role: "Concept and entity pages - a single idea, framework, person or org, synthesized across sources."
+    note: "Default assumption: entity pages live here with `type: entity`. Adjust to the actual layout."
+
+  - path: "wiki/index.md"
+    role: "Master catalog of every page, grouped by domain. Start here for structure."
+
+  - path: "wiki/log.md"
+    role: "Append-only operation log - every ingest, lint, and fix, dated. Use for change history."
+
+  - path: "outputs"
+    role: "Generated reports - lint runs, presentations. Point-in-time, not authoritative."
+
+# ==============================================================================
+# PAGE CONVENTIONS
+# ==============================================================================
+
+conventions:
+  filenames: kebab-case
+  links: "[[wikilinks]] for all internal references"
+
+  # Example `type:` values. Verify these types against the wiki instructions.
+  # wiki/index.md, wiki/log.md and outputs/* carry no frontmatter and no type.
+  page_types:
+    - concept
+    - entity
+    - source-summary
+    - comparison
+
+  # Every wiki page carries this frontmatter. Missing or malformed frontmatter
+  # is itself a finding worth reporting.
+  frontmatter:
+    required: [title, type]
+    expected_on_content_pages: [id, sources, related, created, updated, confidence, tags]
+    confidence_values: [high, medium, low]
+    id_field: "quoted YYYYMMDDHHMM timestamp"
+    sources_field: "list of paths into raw/ - the provenance link back to evidence"
+    related_field: "list of [[wikilinks]]"
+
+  # Body conventions from AGENTS.md: first body line is an H1 title, and every
+  # note ends with a `### Sources` section linking back to raw/.
+  body:
+    h1_title: true
+    sources_section: "### Sources"
+
+  # A concept and its source summary can collide on name. The wiki avoids this
+  # with a descriptive suffix on the source page rather than a fixed one:
+  # `-note` (personal raw notes), `-wikipedia`, `-manual` - e.g. concept
+  # `god-chords` vs source `god-chords-note`, `tonnetz` vs `tonnetz-wikipedia`.
+  collision_suffixes: ["-note", "-wikipedia", "-manual"]
+
+# ==============================================================================
+# DOMAINS - the topic groupings used by wiki/index.md
+# ==============================================================================
+
+# Replace these examples with the groupings in your wiki index.
+domains:
+  - name: "Example Domain"
+    covers: "Replace with the topics covered by your wiki."
+
+# ==============================================================================
+# SEARCH
+# ==============================================================================
+
+search:
+  # Preferred: QMD MCP (BM25 + vector + HyDE + rerank) over the whole wiki.
+  # Delete the qmd block when QMD is not in use.
+  qmd:
+    collection: "<qmd_collection_name>"
+    pattern: "**/*.md"
+    covers: "raw/*.md, wiki/**, outputs/**, and the wiki's own CLAUDE.md"
+    excludes: "PDFs in raw/, and .obsidian/"
+    # Result paths are relative to the collection root, so a hit is classified
+    # by its prefix: raw/ = evidence, wiki/ = derived, outputs/ = report
+
+  # Fallback when QMD is unavailable or its index is stale: Grep/Glob/Read
+  # against wiki.root directly
+  fallback: native-tools
+
+# ==============================================================================
+# OUTPUT - where this workspace writes
+# ==============================================================================
+
+output:
+  docs: "docs/"
+  investigations: "docs/investigations/"
+  # Nothing in this workspace writes to wiki.root. Ever.

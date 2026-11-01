@@ -1,0 +1,8 @@
+# Machine-local configuration and editor state
+/wiki_scope.yaml
+/.wiki_root
+/.claude/settings.local.json
+.idea/
+.DS_Store
+__pycache__/
+*.pyc
